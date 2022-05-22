@@ -1,0 +1,362 @@
+jQuery(function ($) {
+
+  /* global ****************************************/
+  var direction_lotate = ["top","right","bottom","left"];
+  var d = 0; // lotateカウントアップ用
+  var i = 0;          // ルート数カウントアップ用
+  var through   = {}; // 通過マスチェック用
+  var route     = []; // ルート記録 global
+  var direction = []; // 方向記録用
+  var solution  = []; // 解記録用
+  var step  = 0;      // 歩数
+  //var retry = false;
+  var next_check = {};
+  /*************************************************/
+
+  $(document).on("click", ".operation input[name=check]", function(){
+
+
+  let promise = new Promise((resolve, reject) => { // #init
+    console.log('#init');
+    var passVal;
+
+    console.log('#init END');
+    //resolve('Hello ')
+    resolve(passVal);
+  });
+  promise
+  .then((passVal) => { // #1
+    return new Promise((resolve, reject) => {
+      console.log('#1');
+
+    $("body").append("<div class=\"checking\">計算中...</div>");
+    $("div.canvas div.search").removeClass("search");
+    $("input[name=abort]").prop("disabled", false);
+
+    // 操作無効
+    //var start = $("div.canvas div.pointer").removeClass("pointer");
+    //var start = $("div.square span.pointer").removeClass("pointer");
+    //var start = $("div.square span.wall").removeClass(":hover");
+    //$(document).off("click, mouseover",".square .wall");
+
+    // 外壁を有効にする
+    var max_x = $("select[name=num_x]").val();
+    var max_y = $("select[name=num_y]").val();
+    $("div.canvas div[id^=1_]").addClass("wall-left");
+    $("div.canvas div[id$=_1]").addClass("wall-top");
+    $("div.canvas div[id^=" + max_x + "_]").addClass("wall-right");
+    $("div.canvas div[id$=_" + max_y + "]").addClass("wall-bottom");
+
+    $("div.result").empty();
+      console.log('#1 END');
+      resolve();
+    });
+  })
+  .then((passVal) => { // #2
+    return new Promise((resolve, reject) => {
+      console.log('#2');
+
+      var position_start = $("div.canvas div.start").attr("id");
+      serachRoute(position_start, null); // 長い処理
+
+      console.log('#2 END');
+      resolve();
+    });
+  })
+  .then((passVal) => { // #3
+    return new Promise((resolve, reject) => {
+      console.log('#3');
+
+      $("input[name=abort]").prop("disabled", true);
+      if(solution.length > 0){
+        console.log("解の数：" + solution.length);
+        if(solution.length == 1){
+          //console.log("一意解です。");
+          $("div.result").append("<p>一意解です。</p>");
+        }
+        else{
+          //console.log("複数解があります。");
+          $("div.result").append("<p>"+solution.length+"個の解が見つかりました。</p>");
+        }
+        $("div.result").append("<ul>");
+        var sol = 1;
+        solution.forEach(function(index){
+          $("div.result").append("<li class=\"solution\" id=\"" + index + "\">ルート " + sol + "</li>");
+          sol++;
+        });
+        $("div.result").append("</ul>");
+      }
+      else{
+        //console.log("解なし");
+        $("div.result").append("<p>解が見つかりませんでした。</p>");
+      }
+      // global変数初期化
+      i = 0;
+      d = 0;
+      through = {}; // 通過マスチェック用
+      solution  = []; // 解記録用
+      step = 0;
+      next_check = {};
+
+      $("body div.checking").remove();
+
+      console.log('#3 END');
+     //return msg + 'Jeccy.'
+      return passVal; // 最後はreturn
+    });
+
+    }).catch(() => { // エラーハンドリング
+      console.error('Something wrong!')
+    })
+ 
+  });
+
+  // ルート表示
+  $(document).on("click", "li.solution", function(){
+
+    $(".solution").css("font-weight","");
+    $(this).css("font-weight","bold");
+    $(".route").removeClass("route");
+    //$(".solution").css("font-weight","bold");
+    $(".square div#arrow").remove();
+
+    var sol_i = Number($(this).attr("id"));
+    //console.log(direction[sol_i]);
+
+    route[sol_i].forEach(function(pos, pos_i){
+        var arrow = direction[sol_i][pos_i];
+        if(arrow){
+          $("div#"+pos).append("<div id=\"arrow\" class=\"arrow-" + arrow + "\">");
+        }
+    })
+
+  });
+
+
+  var serachRoute = function(position, position_from){
+    //console.table(route);
+    if(i > 1000){ 
+      console.log("強制停止");
+      return true;
+    } // 無限ループ防止
+
+    console.log("Current position: " + position);
+    console.log("Total steps: "+ step);
+    // 通過済みフラグON
+    through[position] = true;
+
+    // 初期値
+    if(i == 0 && step == 0){
+        route[i] = [];
+        route[i].push(position);
+        direction[i] = [];
+        //direction[i].push(direction_lotate[0]);
+        next_check[position] = 0;
+    }
+    // 新しいマスに来た時はnext_check[position]はundefinedなので0に戻す
+    if(!next_check[position]){
+      d = next_check[position] = 0;
+    }
+    // 同じマスで再チェックの時
+    else{
+      d = next_check[position];
+    }
+
+    $("div#" + position).addClass("search");
+
+    // ゴール到達時
+    if($("div#" + position).hasClass("goal")){
+      $("div.canvas div.search").removeClass("search");
+      console.log("The Goal is discovered");
+      // 解として保存
+      solution.push(i);
+      //console.log("Being back to the square from teh Goal");
+      // ルート数をカウントアップ
+      i++;
+      // 前回のルート情報をコピー
+      route[i] = route[i-1];
+      direction[i] = direction[i-1];
+
+      // 最後の位置情報は削除
+      // 直接popすると全体がpopされるため一旦値渡しで配列作成してからpopする
+      var this_route = route[i].concat();
+      this_route.pop();
+      route[i] = this_route;
+      var this_direction = direction[i].concat();
+      this_direction.pop();
+      direction[i] = this_direction;
+      //console.table(route);
+      //console.table(direction);
+
+      /* 戻る準備 ************/
+      // 歩数カウントダウン
+      step--;
+      // 戻る際は通過済みマスから除外、チェック済み方向を初期化。
+      through[position] = false;
+      next_check[position] = 0;
+      /**********************/
+      //1つ戻って再検索
+      console.log("-------------------------");
+      serachRoute(route[i][step], (route[i][step-1] || null));
+      return true;
+
+    } // end ゴール到達
+
+    // 隣のマスの要素を取得
+    var pos  = position.match(/^([0-9]+)_([0-9]+)$/);
+    var posX = Number(pos[1]); var posY = Number(pos[2]);
+    var posNext = {
+      "top"    :  posX    + "_" + (posY-1),
+      "right"  : (posX+1) + "_" +  posY   ,
+      "bottom" :  posX    + "_" + (posY+1),
+      "left"   : (posX-1) + "_" +  posY
+    };
+
+
+/*
+    var direction_next = ""; 
+    if(d < 4){
+       direction_next = direction_lotate[d];
+        console.log("Ditecting direction " + direction_next);
+    }
+    else{
+      console.log("All direction is detected.");
+    }
+*/
+
+    var direction_next = direction_lotate[d];
+
+    //var position_next = "";
+    //if(direction_next){position_next = posNext[direction_next];}
+
+    var position_next = direction_next ? posNext[direction_next] : undefined;
+/*
+    var w = "";
+    var x = "";
+    var y = "";
+    var z = "";
+    if(!( direction_next && !$("div#" + position).hasClass("wall-" + direction_next) )){w = "w";} // 進む方向に壁が無い
+    if(!( position_next && $("div#" + position_next).length) ){x = "x";}// 次のマスが存在する
+    if(!( position_from != position_next)){y = "y";}     // 次のマスは来たマスではない
+    if(!( !through[position_next] )){z = "z";}                                   // 次のマスは通ったマスではない
+      console.log(w + x + y + z);
+*/
+/*
+      !$("div#" + position).hasClass("wall-" + direction_next) && // 進む方向に壁が無い
+       $("div#" + position_next).length                        && // 次のマスが存在する
+       position_from != position_next                   &&        // 次のマスは来たマスではない
+      !through[position_next]                           &&         // 次のマスは通ったマスではない
+      //direction_next != direction[i-1][max_step_prev]             // 前回のルートの最後の方向ではない
+      //direction_next != direction[i][step]             // 通ったマスのチェック済み方向でない
+      //!direction_his[direction_next] // 過去にチェックした方向ではない
+*/
+    if(
+      (direction_next && !$("div#" + position).hasClass("wall-" + direction_next)) && // 進む方向に壁が無い
+      (position_next && $("div#" + position_next).length)                        && // 次のマスが存在する
+       position_from != position_next                   &&        // 次のマスは来たマスではない
+      !through[position_next]                                    // 次のマスは通ったマスではない
+
+    ){
+    //if(w && x && y && z){
+      //進めるとき
+      //console.log("進める:");
+      //if(position == "2_2"){
+      //  console.log("進める判定直後。次のチェック方向：" + next_check[position]); // undefined
+      //}
+      console.log("You can go to the next cell.");
+
+      next_check[position]++;
+      console.log("Next check of this position ===>>>>>"+next_check[position]);
+      console.log("-------------------------");
+
+      // 歩数をカウントアップ
+      step++;
+
+      // 次のルートを記録
+      // 直接pushするとすべて結合されてしまうので一旦値渡しで取り出してからから代入する
+      var this_route = route[i];
+      route[i] = this_route.concat(position_next);
+      var this_direction = direction[i];
+      direction[i] = this_direction.concat(direction_next);
+
+      //console.table(route);
+      //console.log("i:"+i);
+
+      // 起点を次のマスに
+      serachRoute(position_next, position);
+      return true;
+    }
+    else{
+      $("div.canvas div.search").removeClass("search");
+      //console.log("進めない:");
+      //console.table(route);
+      // 進めない時
+      console.log("You can't go to the direction " + direction_next + ".");
+
+      // ルート数をカウントアップ
+      i++;
+      // 前ルートの情報をコピー
+      route[i] = route[i-1];
+      direction[i] = direction[i-1];
+
+      // 方向ローテションカウントアップ
+      d++;
+      // このマスの次回チェック方向も更新
+      next_check[position] = d;
+
+      console.log("Next check of this position ===>>>>>"+next_check[position]);
+      //if(direction_next == "left") {
+      //if(!direction[position]["next_check"]) {
+      //if(d > 3){
+
+      //if(!direction_next){
+      // チェックが一周したら行き先無し
+      if(next_check[position] > 3){
+        console.log("4方向チェック済みです。");
+
+        // 最後のルート情報を削除
+        // 直接popすると全体がpopされるため一旦値渡しで配列作成してからpopする
+        var this_route = route[i].concat();
+        this_route.pop();
+        route[i] = this_route;
+        var this_direction = direction[i].concat();
+        this_direction.pop();
+        direction[i] = this_direction;
+
+        // 1つ前のマス情報がもうなければ検索終了
+        if(route[i].length == 0){
+          console.log("Searching Completion.");
+          console.log("Total route: "+i+" (includes failed routes)");
+          /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+          //resolve(); 
+          /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+          return true;
+        }
+        // 1つ前のマスがあれば戻って再チェック
+        else{
+          console.log("Being back to the square before.");
+          console.log("-------------------------");
+          /* 戻る準備 **********************/
+          // 歩数カウントダウン
+          step--;
+          // 戻る際は通過済みマスから除外、チェック済み方向を初期化。
+          through[position] = false;
+          next_check[position] = 0;
+          /********************************/
+          serachRoute(route[i][step], route[i][step-1] || null);
+          return true;
+        }
+      }
+      // 同じマスで方向を変えて再チェック
+      else{
+        console.log("方向を変えて再チェックします。");
+        console.log("-------------------------");
+        serachRoute(position, position_from);
+        return true;
+      }
+
+    }
+
+  } // function
+
+});
